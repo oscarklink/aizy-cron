@@ -8,7 +8,7 @@ const dbConfig = {
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   host: process.env.DB_HOST,
-  port: process.env.DB_PORT || 5432, // Default PostgreSQL port
+  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 5432, // Default PostgreSQL port
 };
 
 cron.schedule('0 4 * * *', async () => {
@@ -32,7 +32,7 @@ cron.schedule('0 4 * * *', async () => {
         // Calculate if the expiration_date is within 3 days from today
         const today = new Date();
         const expirationDate = new Date(expiration_date);
-        const daysDifference = Math.floor((expirationDate - today) / (1000 * 60 * 60 * 24));
+        const daysDifference = Math.floor((expirationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
         if (daysDifference <= 3) {
           // Refresh the access token and update the database
@@ -58,38 +58,38 @@ cron.schedule('0 4 * * *', async () => {
   }
 });
 
-async function fetchRowsFromDatabase(client) {
+async function fetchRowsFromDatabase(client: Client): Promise<any[]> {
   const { rows } = await client.query('SELECT * FROM sharepoint_webhooks');
   return rows;
 }
 
-async function fetchConnectSharepointData(client, accountId) {
+async function fetchConnectSharepointData(client: Client, accountId: string): Promise<any | undefined> {
   const { rows } = await client.query('SELECT access_token, tenant_id FROM connect_sharepoint WHERE account_id = $1', [accountId]);
   return rows[0];
 }
 
-async function updateAccessTokenInDatabase(client, accountId, accessToken) {
+async function updateAccessTokenInDatabase(client: Client, accountId: string, accessToken: string): Promise<void> {
   await client.query('UPDATE connect_sharepoint SET access_token = $1 WHERE account_id = $2', [accessToken, accountId]);
 }
 
-async function updateExpirationDateInDatabase(client, webhookId, expirationDate) {
+async function updateExpirationDateInDatabase(client: Client, webhookId: string, expirationDate: Date): Promise<void> {
   await client.query('UPDATE sharepoint_webhooks SET expiration_date = $1 WHERE webhook_external_id = $2', [
     expirationDate,
     webhookId,
   ]);
 }
 
-async function refreshAccessToken(tenantId) {
+async function refreshAccessToken(tenantId: string): Promise<string | null> {
   const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
-  const tokenData = {
+  const tokenData = new URLSearchParams({
     client_id: process.env.SHAREPOINT_CLIENT_ID,
     client_secret: process.env.SHAREPOINT_CLIENT_SECRET,
     scope: 'https://graph.microsoft.com/.default',
     grant_type: 'client_credentials',
-  };
+  });
 
   try {
-    const tokenResponse = await axios.post(tokenUrl, new URLSearchParams(tokenData));
+    const tokenResponse = await axios.post(tokenUrl, tokenData);
     if (tokenResponse.status === 200) {
       return tokenResponse.data.access_token;
     } else {
