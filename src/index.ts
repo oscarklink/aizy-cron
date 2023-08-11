@@ -1,6 +1,9 @@
 import cron from 'node-cron';
 import axios from 'axios';
-import { Client } from 'pg'; // Make sure to install the pg package
+import * as pgPromise from 'pg-promise'; // Import 'pg-promise'
+
+// Create a pg-promise instance
+const pgp = pgPromise();
 
 // Database configuration
 const dbConfig = {
@@ -12,7 +15,7 @@ const dbConfig = {
 };
 
 cron.schedule('0 4 * * *', async () => {
-  const client = new Client(dbConfig);
+  const client = pgp(dbConfig);
 
   try {
     await client.connect();
